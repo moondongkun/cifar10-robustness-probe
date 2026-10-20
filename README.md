@@ -1,60 +1,83 @@
-# CIFAR-10 Image Classification Project
+# CIFAR-10 Robustness Probe
 
-This repository contains the code for a CIFAR-10 image classification project using PyTorch. The project aims to evaluate the impact of data and label perturbations on model performance, including baseline, random label shuffle, label noise, and input perturbations.
+How much does a small CNN's accuracy depend on clean labels and clean pixels?
+This project trains a compact convolutional network on CIFAR-10 and then probes
+it with three controlled perturbations: fully shuffled labels, 20% label noise,
+and additive Gaussian input noise.
 
-## Project Structure
-
-```
-CIFAR-10-Classification/
-├── data/                  # CIFAR-10 dataset (downloaded automatically)
-├── results/               # Generated results (accuracy and loss plots)
-├── src/                   # Source code for training and evaluation
-│   └── main.py           # Main training and evaluation script
-├── README.md              # Project overview and instructions
-└── requirements.txt       # Required Python packages
-```
-
-## Requirements
-
-Ensure you have the following packages installed:
-
-```bash
-pip install -r requirements.txt
-```
-
-## Usage
-
-To train the model and generate results, simply run:
-
-```bash
-python src/main.py
-```
-
-The results will be saved in the `results/` directory as:
-- `accuracy_trends.png` - Training and validation accuracy over epochs
-- `loss_trends.png` - Training and validation loss over epochs
-
-## Data
-
-The CIFAR-10 dataset will be downloaded automatically to the `data/` directory.
-
-## Model
-
-A simple convolutional neural network (CNN) is used for classification, with the following architecture:
-- 3 convolutional layers
-- 2 fully connected layers
-- ReLU activation and max pooling
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Results
 
-The generated figures include:
-- Training and Validation Accuracy Trends
-- Training and Validation Loss Trends
+The baseline CNN is trained for 30 epochs, then evaluated on the held-out test
+set and on three perturbed copies of its training split. All numbers are read
+from the confusion matrices in [`results/`](results/).
+
+| Evaluation set | Samples | Accuracy | What it shows |
+|---|---:|---:|---|
+| Baseline (test set) | 10,000 | **72.3%** | Generalisation of the clean model |
+| Random label shuffle | 40,000 | 10.3% | Chance level, as expected: labels carry no signal |
+| 20% label noise | 40,000 | 76.5% | Close to the ~80% ceiling set by the corrupted labels |
+| Gaussian input noise (σ = 0.1) | 40,000 | 43.8%\* | See note below |
+
+\* The recorded input-noise run clamped noisy images to `[0, 1]` even though
+inputs are normalised to `[-1, 1]`, which erased every negative pixel value. Most
+of that drop comes from the clamp, not the noise. The bug is fixed in
+`src/main.py` (it now clamps to `[-1, 1]`); re-run the script to get the corrected
+figure.
+
+<p align="center">
+  <img src="results/Baseline_Test_confusion_matrix.png" width="560" alt="Baseline test-set confusion matrix">
+</p>
+
+The baseline confusion matrix shows the familiar CIFAR-10 pattern: vehicles
+(ship, truck, automobile) are separated well, while the animal classes, especially
+cat↔dog and bird↔deer, absorb most of the errors.
+
+## Model
+
+`SimpleCNN` in [`src/main.py`](src/main.py):
+
+```
+Conv(3→32) → ReLU → MaxPool
+Conv(32→64) → ReLU → MaxPool
+Conv(64→128) → ReLU → MaxPool
+FC(2048→256) → ReLU → FC(256→128) → ReLU → FC(128→10)
+```
+
+Adam (lr = 1e-3), batch size 128, 30 epochs, 80/20 train/validation split,
+seed 42.
+
+## Running it
+
+```bash
+pip install -r requirements.txt
+python src/main.py
+```
+
+- CIFAR-10 downloads automatically to `data/`.
+- The trained weights are cached at `models/baseline_model.pth`; delete the file to retrain.
+- Confusion matrices and the loss curve are written to `results/`.
+
+## Project structure
+
+```
+├── src/
+│   └── main.py          # training, perturbation experiments, evaluation
+├── results/             # confusion matrices and loss curve
+├── requirements.txt
+└── README.md
+```
+
+## Notes
+
+- The perturbation experiments evaluate the already-trained baseline on modified
+  copies of its training split; they measure robustness of a fixed model, not the
+  effect of training on noisy data.
+- Built as a mini-project for an AI course at Seoul National University (2025).
 
 ## License
 
-This project is licensed under the MIT License.
-
-## Contact
-
-For questions or collaboration, please reach out at [your.email@domain.com].
+[MIT](LICENSE) © Dongkun Moon

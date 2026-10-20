@@ -1,0 +1,9 @@
+# Downloaded dataset and cached weights
+data/
+models/
+*.pth
+
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+.DS_Store

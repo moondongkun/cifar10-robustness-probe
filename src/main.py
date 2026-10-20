@@ -25,8 +25,10 @@ batch_size = 128
 learning_rate = 0.001
 epochs = 30
 
-# Create results directory if it doesn't exist
-results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../results/'))
+# Paths are resolved relative to the repository root, so the script can be run from anywhere
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+data_dir = os.path.join(repo_root, 'data')
+results_dir = os.path.join(repo_root, 'results')
 os.makedirs(results_dir, exist_ok=True)
 
 # Data Transformations
@@ -36,13 +38,14 @@ transform = transforms.Compose([
 ])
 
 # Load CIFAR-10 Dataset
-train_dataset = torchvision.datasets.CIFAR10(root='../data', train=True, download=True, transform=transform)
-test_dataset = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform)
+train_dataset = torchvision.datasets.CIFAR10(root=data_dir, train=True, download=True, transform=transform)
+test_dataset = torchvision.datasets.CIFAR10(root=data_dir, train=False, download=True, transform=transform)
 
 # Train-Validation Split
 train_size = int(0.8 * len(train_dataset))
 val_size = len(train_dataset) - train_size
-train_subset, val_subset = random_split(train_dataset, [train_size, val_size])
+train_subset, val_subset = random_split(train_dataset, [train_size, val_size],
+                                       generator=torch.Generator().manual_seed(seed))
 
 train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False)
@@ -80,7 +83,7 @@ class SimpleCNN(nn.Module):
         return x
 
 # Check if the baseline model exists
-model_path = '../models/baseline_model.pth'
+model_path = os.path.join(repo_root, 'models', 'baseline_model.pth')
 
 # Ensure the models directory exists
 models_dir = os.path.dirname(model_path)
@@ -149,8 +152,9 @@ print("Label Noise (20%) dataset prepared!")
 
 # Experiment 3: Input Perturbation (e.g., Gaussian Noise)
 def add_noise(img):
+    # Inputs are normalized to [-1, 1], so clamp to that range (not [0, 1])
     noise = torch.randn_like(img) * 0.1
-    return torch.clamp(img + noise, 0, 1)
+    return torch.clamp(img + noise, -1, 1)
 
 def perturb_collate_fn(batch):
     images, labels = zip(*batch)
@@ -161,7 +165,7 @@ perturbed_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True,
 print("Input Perturbation dataset prepared!")
 
 # Evaluation and Confusion Matrix
-def evaluate_and_visualize(model, data_loader, name, show_plot=True):
+def evaluate_and_visualize(model, data_loader, name, show_plot=False):
     model.eval()
     y_true, y_pred = [], []
     with torch.inference_mode():
@@ -189,9 +193,9 @@ def evaluate_and_visualize(model, data_loader, name, show_plot=True):
     print(classification_report(y_true, y_pred, target_names=test_dataset.classes))
 
 # Evaluate and visualize all datasets
-evaluate_and_visualize(model, test_loader, "Baseline_Test", show_plot=True)
-evaluate_and_visualize(model, random_label_loader, "Random_Label_Shuffle", show_plot=True)
-evaluate_and_visualize(model, noisy_label_loader, "Label_Noise_20", show_plot=True)
-evaluate_and_visualize(model, perturbed_loader, "Input_Perturbation", show_plot=True)
+evaluate_and_visualize(model, test_loader, "Baseline_Test")
+evaluate_and_visualize(model, random_label_loader, "Random_Label_Shuffle")
+evaluate_and_visualize(model, noisy_label_loader, "Label_Noise_20")
+evaluate_and_visualize(model, perturbed_loader, "Input_Perturbation")
 
 print("All experiments completed!")
